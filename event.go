@@ -190,6 +190,12 @@ func Log(msg string) Event {
 	return logEvent{Msg: msg, Time: time.Now()}
 }
 
+// LogWithTimestamp returns an Event with an explicit timestamp that contains
+// only a human readable message.
+func LogWithTimestamp(msg string, timestamp time.Time) logEvent {
+	return logEvent{Msg: msg, Time: timestamp}
+}
+
 type logEvent struct {
 	Msg  string
 	Time time.Time
