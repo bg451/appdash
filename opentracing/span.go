@@ -13,16 +13,17 @@ import (
 type Span struct {
 	Recorder      *appdash.Recorder
 	operationName string
-
-	attributes map[string]string
-	tags       opentracing.Tags
-	logs       []opentracing.LogData
+	startTime     time.Time
+	attributes    map[string]string
+	tags          opentracing.Tags
+	logs          []opentracing.LogData
 }
 
 func newAppdashSpan(recorder *appdash.Recorder, operationName string) opentracing.Span {
 	return &Span{
 		Recorder:      recorder,
 		operationName: operationName,
+		startTime:     time.Now(),
 		attributes:    make(map[string]string),
 		tags:          make(opentracing.Tags),
 		logs:          make([]opentracing.LogData, 0),
@@ -65,10 +66,12 @@ func (s *Span) Finish() {
 	}
 
 	for _, log := range s.logs {
-		// XXX: There needs to be an appdash event that accepts a timestamp, msg,
-		// and payload.
 		s.Recorder.Log(log.Event)
 	}
+
+	// Send a SpanCompletionEvent, which satisfies the appdash.Timespan interface
+	// By doing this, we can actually see how long spans took.
+	s.Recorder.Event(SpanCompletionEvent{s.startTimestamp, time.Now()})
 }
 
 // SetTag sets a key value pair.

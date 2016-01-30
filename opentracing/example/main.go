@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"runtime"
@@ -67,6 +68,7 @@ func server() {
 			fmt.Println(err)
 			return
 		}
+
 		serverSpan.SetTag("component", "server")
 		defer serverSpan.Finish()
 
@@ -74,7 +76,9 @@ func server() {
 		if err != nil {
 			serverSpan.LogEventWithPayload("body read error", err)
 		}
+
 		serverSpan.LogEventWithPayload("got request with body", string(fullBody))
+		time.Sleep(rand.Intn(200) * time.Millisecond)
 	})
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
