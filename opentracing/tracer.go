@@ -92,10 +92,13 @@ func (t *Tracer) JoinTraceFromText(
 	return span, nil
 }
 
+// parseUintFromMap tries to extract a uint64 from a map with a given key. If
+// the key isn't in the map, it returns an error. Any error parsing the
+// uint returns an error as well.
 func parseUintFromMap(attrs map[string]string, key string) (uint64, error) {
 	v, ok := attrs[key]
 	if !ok {
-		return 0, fmt.Errorf("%s does not exist", key)
+		return 0, fmt.Errorf("%s does not exist.", key)
 	}
 	return strconv.ParseUint(v, 10, 64)
 }

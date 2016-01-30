@@ -1,5 +1,12 @@
 package main
 
+// This is a near wholesale copy of the opentracing-go/examples/dapperish.go
+// file. The only thing that has been changed is the addition of an appdash
+// store, traceapp, and appdash/opentracing Tracer. Everything else is the
+// exact same to show that it changing backends is O(1).
+// One thing I've noticed is the clash of package names, since there is
+// opentracing/opentracing and appdash/opentracing
+
 import (
 	"bufio"
 	"bytes"
@@ -18,8 +25,6 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 )
-
-var collector appdash.Collector
 
 func client() {
 	reader := bufio.NewReader(os.Stdin)
@@ -110,7 +115,7 @@ func main() {
 	// (i.e. spans and annotations) and placing them into a store. In this app
 	// we use a local collector (we could also use a remote collector, sending
 	// the information to a remote Appdash collection server).
-	collector = appdash.NewLocalCollector(store)
+	collector := appdash.NewLocalCollector(store)
 
 	recorder := appdash.NewRecorder(appdash.SpanID{}, collector)
 	opentracing.InitGlobalTracer(otappdash.NewTracer("dapperish_tester", recorder))
