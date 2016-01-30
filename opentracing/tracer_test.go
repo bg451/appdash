@@ -13,11 +13,19 @@ func TestTextSerialization(t *testing.T) {
 	tracer := NewTracer("my-tracer", recorder)
 
 	parentSpan := tracer.StartTrace("test.parent")
+	attrKey := "test123"
+	attrVal := "1isthisworking-"
+	parentSpan.SetTraceAttribute(attrKey, attrVal)
 	parentSpanId := parentSpan.(*Span).Recorder.SpanID
 	contextMap, attrMap := tracer.PropagateSpanAsText(parentSpan)
 	childSpan, err := tracer.JoinTraceFromText("", contextMap, attrMap)
 	if err != nil {
 		t.Error(err)
+	}
+
+	// Make sure the trace attributes were propagated.
+	if childSpan.TraceAttribute(attrKey) != attrVal {
+		t.Error("Expected trace attribute to be propagated")
 	}
 
 	if childSpan.(*Span).Recorder.Trace != parentSpanId.Trace {
@@ -37,12 +45,20 @@ func TestBinarySerialization(t *testing.T) {
 	tracer := NewTracer("my-tracer", recorder)
 
 	parentSpan := tracer.StartTrace("test.parent")
+	attrKey := "test123"
+	attrVal := "1isthisworking-"
+	parentSpan.SetTraceAttribute(attrKey, attrVal)
 	parentSpanId := parentSpan.(*Span).Recorder.SpanID
 	contextMap, attrMap := tracer.PropagateSpanAsBinary(parentSpan)
 	childSpan, err := tracer.JoinTraceFromBinary("", contextMap, attrMap)
 
 	if err != nil {
 		t.Error(err)
+	}
+
+	// Make sure the trace attributes were propagated.
+	if childSpan.TraceAttribute(attrKey) != attrVal {
+		t.Error("Expected trace attribute to be propagated")
 	}
 
 	if childSpan.(*Span).Recorder.Trace != parentSpanId.Trace {
