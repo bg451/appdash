@@ -10,12 +10,20 @@ import (
 	"sourcegraph.com/sourcegraph/appdash"
 )
 
+const (
+	// TRACEID_KEY is the trace id key for text propagation
+	TRACEID_KEY = "Traceid"
+	// SPANID_KEY is the span id key for text propagation
+	SPANID_KEY = "Spanid"
+)
+
+// Tracer is the appdash implementation of the opentracing-go API.
 type Tracer struct {
 	recorder *appdash.Recorder
 	name     string
 }
 
-// NewAppdashTracer returns a new Tracer that implements the `opentracing.Tracer`
+// NewTracer returns a new Tracer that implements the `opentracing.Tracer`
 // interface.
 //
 // NewAppdashTracer requires an `appdash.Recorder` in order to serialize and
@@ -30,13 +38,18 @@ func NewTracer(name string, r *appdash.Recorder) *Tracer {
 // off the Tracer's recorder, changing the recorder's SpanID to contain the
 // new root SpanID.
 func (t *Tracer) StartTrace(operationName string) opentracing.Span {
-	spanId := appdash.NewRootSpanID()
+	spanID := appdash.NewRootSpanID()
 	recorder := t.recorder.Child()
-	recorder.SpanID = spanId
+	recorder.SpanID = spanID
 
 	return newAppdashSpan(recorder, operationName)
 }
 
+// PropagateSpanAsText represents the Span for propagation as string:string text
+// maps (see JoinTraceFromText()).
+//
+// Specific to Appdash, the contextSnapshot contains two pieces of core
+// indentifying information, "Traceid" and "Spanid".
 func (t *Tracer) PropagateSpanAsText(
 	sp opentracing.Span,
 ) (
@@ -46,9 +59,8 @@ func (t *Tracer) PropagateSpanAsText(
 	span := sp.(*Span)
 
 	contextIDMap = map[string]string{
-		// Calling this SpanID is a bit disingenuous imo
-		"Spanid":  strconv.FormatUint(uint64(span.Recorder.SpanID.Span), 10),
-		"Traceid": strconv.FormatUint(uint64(span.Recorder.SpanID.Trace), 10),
+		SPANID_KEY:  strconv.FormatUint(uint64(span.Recorder.SpanID.Span), 10),
+		TRACEID_KEY: strconv.FormatUint(uint64(span.Recorder.SpanID.Trace), 10),
 	}
 
 	attrsMap = make(map[string]string)
@@ -58,10 +70,8 @@ func (t *Tracer) PropagateSpanAsText(
 	return contextIDMap, attrsMap
 }
 
-// JoinTraceFromText joins and returns a new child span.
-//
-// JoinTraceFromText expects a parsable appdash.SpanID string. It will use that
-// SpanID to create a new child span.
+// JoinTraceFromText joins and returns a new child span using the text-encoded
+// `contextSnapshot` and `traceAttrs` produced by PropagateSpanAsText.
 func (t *Tracer) JoinTraceFromText(
 	operationName string,
 	contextSnapshot map[string]string,
@@ -71,12 +81,12 @@ func (t *Tracer) JoinTraceFromText(
 	error,
 ) {
 
-	spanID, err := parseUintFromMap(contextSnapshot, "Spanid")
+	spanID, err := parseUintFromMap(contextSnapshot, SPANID_KEY)
 	if err != nil {
 		return nil, err
 	}
 
-	traceID, err := parseUintFromMap(contextSnapshot, "Traceid")
+	traceID, err := parseUintFromMap(contextSnapshot, TRACEID_KEY)
 	if err != nil {
 		return nil, err
 	}
@@ -98,15 +108,15 @@ func (t *Tracer) JoinTraceFromText(
 func parseUintFromMap(attrs map[string]string, key string) (uint64, error) {
 	v, ok := attrs[key]
 	if !ok {
-		return 0, fmt.Errorf("%s does not exist.", key)
+		return 0, fmt.Errorf("%s does not exist", key)
 	}
 	return strconv.ParseUint(v, 10, 64)
 }
 
-// PropagateSpanAsText returns a binary representation of an Appdash span
+// PropagateSpanAsBinary returns a binary representation of an Appdash span
 // using encoding/gob.
 //
-// The only thing that gets encoded is the SpanID.
+// The core piece of identifying information is the appdash.SpanID struct.
 func (t *Tracer) PropagateSpanAsBinary(
 	sp opentracing.Span,
 ) (
@@ -129,6 +139,9 @@ func (t *Tracer) PropagateSpanAsBinary(
 	return contextSnapshotBuffer.Bytes(), traceAttrsBuffer.Bytes()
 }
 
+// JoinTraceFromBinary starts a new child Span with an optional operationName.
+// It uses the binary-encoded Span information from PropagateSpanAsBinary() as
+// the new Span's parent.
 func (t *Tracer) JoinTraceFromBinary(
 	operationName string,
 	contextSnapshot []byte,

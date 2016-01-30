@@ -30,7 +30,7 @@ func newAppdashSpan(recorder *appdash.Recorder, operationName string) opentracin
 	}
 }
 
-// Sets the name of the span, overwriting the previous value.
+// SetOperationName setss the name of the span, overwriting the previous value.
 func (s *Span) SetOperationName(operationName string) opentracing.Span {
 	s.operationName = operationName
 	return s
@@ -44,15 +44,15 @@ func (s *Span) StartChild(operationName string) opentracing.Span {
 	return newAppdashSpan(recorder, operationName)
 }
 
-// Finish() ends the span.
+// Finish ends the span.
 //
 // Internally, the `appdash.Reporter` reports the span's name, tags,
 // attributes, and log events.
 func (s *Span) Finish() {
 	s.Recorder.Name(s.operationName) // Set the span's name
 
+	// Convert span tags to annotations.
 	for key, value := range s.tags {
-		// Set the tags.
 		// XXX: I'm not sure right now how to represente arbritrary structs,
 		// so strings will have to do for now.
 		if v, ok := value.(string); ok {
@@ -60,11 +60,12 @@ func (s *Span) Finish() {
 		}
 	}
 
+	// Record any trace attributes as annotations.
 	for key, value := range s.attributes {
-		// Record any trace attributes
 		s.Recorder.Annotation(appdash.Annotation{Key: key, Value: []byte(value)})
 	}
 
+	// Log all of the stored `LogData`s
 	for _, log := range s.logs {
 		s.Recorder.Log(log.Event)
 	}
@@ -95,7 +96,8 @@ func (s *Span) LogEvent(event string) {
 	s.Log(opentracing.LogData{Event: event, Timestamp: time.Now()})
 }
 
-// LogEvent is short for Log(opentracing.LogData{Event: event, Payload: payload, ...})
+// LogEventWithPayload is short for
+// Log(opentracing.LogData{Event: event, Payload: payload, ...}).
 func (s *Span) LogEventWithPayload(event string, payload interface{}) {
 	s.Log(opentracing.LogData{Event: event, Timestamp: time.Now(), Payload: payload})
 }
@@ -114,8 +116,15 @@ func (s *Span) SetTraceAttribute(restrictedKey, value string) opentracing.Span {
 }
 
 // TraceAttribute retuns the value for a given key. If the key doesn't exist,
-// an empty string is returned.
-func (s *Span) TraceAttribute(key string) (value string) {
+// an empty string is returned. It will attempt to canoncicalize the key,
+// however if it doesn't match the match the expected pattern it will use the
+// provided key.
+func (s *Span) TraceAttribute(restrictedKey string) (value string) {
+	key, valid := opentracing.CanonicalizeTraceAttributeKey(restrictedKey)
+	if !valid {
+		key = restrictedKey
+	}
+
 	value, ok := s.attributes[key]
 	if !ok {
 		return ""
