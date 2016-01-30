@@ -78,7 +78,7 @@ func server() {
 		}
 
 		serverSpan.LogEventWithPayload("got request with body", string(fullBody))
-		time.Sleep(rand.Intn(200) * time.Millisecond)
+		time.Sleep(time.Duration(rand.Intn(200)) * time.Millisecond)
 	})
 
 	log.Fatal(http.ListenAndServe(":8080", nil))

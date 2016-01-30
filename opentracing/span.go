@@ -71,7 +71,7 @@ func (s *Span) Finish() {
 
 	// Send a SpanCompletionEvent, which satisfies the appdash.Timespan interface
 	// By doing this, we can actually see how long spans took.
-	s.Recorder.Event(SpanCompletionEvent{s.startTimestamp, time.Now()})
+	s.Recorder.Event(spanCompletionEvent{s.startTime, time.Now()})
 }
 
 // SetTag sets a key value pair.

@@ -21,7 +21,7 @@ type Tracer struct {
 // NewAppdashTracer requires an `appdash.Recorder` in order to serialize and
 // write events to an Appdash store.
 func NewTracer(name string, r *appdash.Recorder) *Tracer {
-	return &Tracer{recorder: r}
+	return &Tracer{name: name, recorder: r}
 }
 
 // StartTrace starts a new Trace and returns a new span.
