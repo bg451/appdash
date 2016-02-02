@@ -36,6 +36,10 @@ func TestTextSerialization(t *testing.T) {
 		t.Error("Expected child's parent id to be", parentSpanId.Span,
 			"got", childSpan.(*Span).Recorder.Parent)
 	}
+
+	if childSpan.(*Span).sampled != parentSpan.(*Span).sampled {
+		t.Error("Expected sampled to be propagated")
+	}
 }
 
 func TestBinarySerialization(t *testing.T) {
@@ -49,9 +53,9 @@ func TestBinarySerialization(t *testing.T) {
 	attrVal := "1isthisworking-"
 	parentSpan.SetTraceAttribute(attrKey, attrVal)
 	parentSpanId := parentSpan.(*Span).Recorder.SpanID
+
 	contextMap, attrMap := tracer.PropagateSpanAsBinary(parentSpan)
 	childSpan, err := tracer.JoinTraceFromBinary("", contextMap, attrMap)
-
 	if err != nil {
 		t.Error(err)
 	}
@@ -68,5 +72,9 @@ func TestBinarySerialization(t *testing.T) {
 	if childSpan.(*Span).Recorder.Parent != parentSpanId.Span {
 		t.Error("Expected child's parent id to be", parentSpanId.Span,
 			"got", childSpan.(*Span).Recorder.Parent)
+	}
+
+	if childSpan.(*Span).sampled != parentSpan.(*Span).sampled {
+		t.Error("Expected sampled to be propagated")
 	}
 }

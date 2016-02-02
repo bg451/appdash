@@ -12,7 +12,7 @@ func TestSpanStartChild(t *testing.T) {
 	collector := appdash.NewMemoryStore()
 	spanID := appdash.SpanID{100, 200, 300}
 	recorder := appdash.NewRecorder(spanID, collector)
-	var span opentracing.Span = newAppdashSpan(recorder, "parent")
+	var span opentracing.Span = newAppdashSpan("parent", recorder, true)
 
 	otChild := span.StartChild("child") // returns opentracing.Span
 

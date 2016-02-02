@@ -14,16 +14,18 @@ type Span struct {
 	Recorder      *appdash.Recorder
 	operationName string
 	startTime     time.Time
+	sampled       bool // If the trace is sampled or not
 	attributes    map[string]string
 	tags          opentracing.Tags
 	logs          []opentracing.LogData
 }
 
-func newAppdashSpan(recorder *appdash.Recorder, operationName string) opentracing.Span {
+func newAppdashSpan(operationName string, recorder *appdash.Recorder, sampled bool) *Span {
 	return &Span{
 		Recorder:      recorder,
 		operationName: operationName,
 		startTime:     time.Now(),
+		sampled:       sampled,
 		attributes:    make(map[string]string),
 		tags:          make(opentracing.Tags),
 		logs:          make([]opentracing.LogData, 0),
@@ -38,10 +40,13 @@ func (s *Span) SetOperationName(operationName string) opentracing.Span {
 
 // StartChild returns a new Span.
 //
-// The child is created using the parent span's appdash.Recorder.
+// The child is created using the parent span's appdash.Recorder. The parent's
+// trace attributes are copied to this child as well.
 func (s *Span) StartChild(operationName string) opentracing.Span {
 	recorder := s.Recorder.Child()
-	return newAppdashSpan(recorder, operationName)
+	span := newAppdashSpan(operationName, recorder, s.sampled)
+	span.attributes = s.attributes
+	return span
 }
 
 // Finish ends the span.
@@ -49,6 +54,10 @@ func (s *Span) StartChild(operationName string) opentracing.Span {
 // Internally, the `appdash.Reporter` reports the span's name, tags,
 // attributes, and log events.
 func (s *Span) Finish() {
+	if !s.sampled {
+		return
+	}
+
 	s.Recorder.Name(s.operationName) // Set the span's name
 
 	// Convert span tags to annotations.

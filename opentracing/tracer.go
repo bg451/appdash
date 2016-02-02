@@ -13,8 +13,12 @@ import (
 const (
 	// TRACEID_KEY is the trace id key for text propagation
 	TRACEID_KEY = "Traceid"
+
 	// SPANID_KEY is the span id key for text propagation
 	SPANID_KEY = "Spanid"
+
+	// SAMPLED_KEY is the key for determing whether a trace is is sampled or not.
+	SAMPLED_KEY = "Sampled"
 )
 
 // Tracer is the appdash implementation of the opentracing-go API.
@@ -40,16 +44,21 @@ func NewTracer(name string, r *appdash.Recorder) *Tracer {
 func (t *Tracer) StartTrace(operationName string) opentracing.Span {
 	spanID := appdash.NewRootSpanID()
 	recorder := t.recorder.Child()
+
+	// We need to overwrite the recorder's SpanID to be a root SpanID.
 	recorder.SpanID = spanID
 
-	return newAppdashSpan(recorder, operationName)
+	// XXX: Sample everything for now, move away from this.
+	sampled := true
+
+	return newAppdashSpan(operationName, recorder, sampled)
 }
 
 // PropagateSpanAsText represents the Span for propagation as string:string text
 // maps (see JoinTraceFromText()).
 //
 // Specific to Appdash, the contextSnapshot contains two pieces of core
-// indentifying information, "Traceid" and "Spanid".
+// indentifying information, "traceid" and "spanid".
 func (t *Tracer) PropagateSpanAsText(
 	sp opentracing.Span,
 ) (
@@ -61,6 +70,7 @@ func (t *Tracer) PropagateSpanAsText(
 	contextIDMap = map[string]string{
 		SPANID_KEY:  strconv.FormatUint(uint64(span.Recorder.SpanID.Span), 10),
 		TRACEID_KEY: strconv.FormatUint(uint64(span.Recorder.SpanID.Trace), 10),
+		SAMPLED_KEY: strconv.FormatBool(span.sampled),
 	}
 
 	attrsMap = make(map[string]string)
@@ -91,7 +101,15 @@ func (t *Tracer) JoinTraceFromText(
 		return nil, err
 	}
 
+	sampled, err := strconv.ParseBool(contextSnapshot[SAMPLED_KEY])
+	if err != nil {
+		return nil, err
+	}
+
 	span := t.StartTrace(operationName)
+	// I'm not a fan of doing this, I should probably make a private method
+	// for creating this.
+	span.(*Span).sampled = sampled
 	span.(*Span).Recorder.SpanID = appdash.NewSpanID(
 		appdash.SpanID{Trace: appdash.ID(traceID), Span: appdash.ID(spanID)})
 
@@ -113,6 +131,13 @@ func parseUintFromMap(attrs map[string]string, key string) (uint64, error) {
 	return strconv.ParseUint(v, 10, 64)
 }
 
+// spanContextSnapshot holds the relevant context snapshot information
+// that will be encoded and decoded by encoding/gob.
+type spanContextSnapshot struct {
+	SpanID  appdash.SpanID
+	Sampled bool
+}
+
 // PropagateSpanAsBinary returns a binary representation of an Appdash span
 // using encoding/gob.
 //
@@ -125,7 +150,10 @@ func (t *Tracer) PropagateSpanAsBinary(
 ) {
 	var contextSnapshotBuffer bytes.Buffer
 	s := sp.(*Span)
-	err := gob.NewEncoder(&contextSnapshotBuffer).Encode(s.Recorder.SpanID)
+
+	snapshot := spanContextSnapshot{s.Recorder.SpanID, s.sampled}
+
+	err := gob.NewEncoder(&contextSnapshotBuffer).Encode(snapshot)
 	if err != nil {
 		panic("error encoding SpanId")
 	}
@@ -150,10 +178,9 @@ func (t *Tracer) JoinTraceFromBinary(
 	opentracing.Span,
 	error,
 ) {
-
-	spanID := appdash.SpanID{}
+	snapshot := spanContextSnapshot{}
 	contextSnapshotBuffer := bytes.NewBuffer(contextSnapshot)
-	err := gob.NewDecoder(contextSnapshotBuffer).Decode(&spanID)
+	err := gob.NewDecoder(contextSnapshotBuffer).Decode(&snapshot)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +193,8 @@ func (t *Tracer) JoinTraceFromBinary(
 	}
 
 	span := t.StartTrace(operationName)
-	span.(*Span).Recorder.SpanID = appdash.NewSpanID(spanID)
+	span.(*Span).Recorder.SpanID = appdash.NewSpanID(snapshot.SpanID)
+	span.(*Span).sampled = snapshot.Sampled
 
 	for k, v := range traceAttrMap {
 		span.SetTraceAttribute(k, v)
