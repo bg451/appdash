@@ -1,6 +1,7 @@
 package opentracing
 
 import (
+	"sync"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -8,16 +9,20 @@ import (
 )
 
 // Span is the Appdash implemntation of the `opentracing.Span` interface.
-//
-// Span is not safe for concurrent usage.
 type Span struct {
 	Recorder      *appdash.Recorder
 	operationName string
 	startTime     time.Time
 	sampled       bool // If the trace is sampled or not
-	attributes    map[string]string
-	tags          opentracing.Tags
-	logs          []opentracing.LogData
+
+	attrLock   sync.RWMutex
+	attributes map[string]string
+
+	tagLock sync.Mutex
+	tags    opentracing.Tags
+
+	logLock sync.Mutex
+	logs    []opentracing.LogData
 }
 
 func newAppdashSpan(operationName string, recorder *appdash.Recorder, sampled bool) *Span {
@@ -89,6 +94,9 @@ func (s *Span) Finish() {
 // The value is an arbritary type, but the system must know how to handle it,
 // otherwise the behavior is undefined when reporting the tags.
 func (s *Span) SetTag(key string, value interface{}) opentracing.Span {
+	s.tagLock.Lock()
+	defer s.tagLock.Unlock()
+
 	s.tags[key] = value
 	return s
 }
@@ -97,6 +105,9 @@ func (s *Span) SetTag(key string, value interface{}) opentracing.Span {
 // Once (*Span).Finish() is called, all of the data is reported.
 // See `opentracing.LogData` for more details on the semantics of the data.
 func (s *Span) Log(data opentracing.LogData) {
+	s.logLock.Lock()
+	defer s.logLock.Unlock()
+
 	s.logs = append(s.logs, data)
 }
 
@@ -120,6 +131,10 @@ func (s *Span) SetTraceAttribute(restrictedKey, value string) opentracing.Span {
 	if !valid {
 		key = restrictedKey
 	}
+
+	s.attrLock.Lock()
+	defer s.attrLock.Unlock()
+
 	s.attributes[key] = value
 	return s
 }
@@ -134,7 +149,9 @@ func (s *Span) TraceAttribute(restrictedKey string) (value string) {
 		key = restrictedKey
 	}
 
+	s.attrLock.RLock()
 	value, ok := s.attributes[key]
+	s.attrLock.RUnlock()
 	if !ok {
 		return ""
 	}
