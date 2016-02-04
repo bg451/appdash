@@ -2,7 +2,7 @@ package opentracing
 
 import (
 	"bytes"
-	"encoding/gob"
+	"encoding/binary"
 	"fmt"
 	"strconv"
 
@@ -131,40 +131,60 @@ func parseUintFromMap(attrs map[string]string, key string) (uint64, error) {
 	return strconv.ParseUint(v, 10, 64)
 }
 
-// spanContextSnapshot holds the relevant context snapshot information
-// that will be encoded and decoded by encoding/gob.
-type spanContextSnapshot struct {
-	SpanID  appdash.SpanID
-	Sampled bool
-}
-
 // PropagateSpanAsBinary returns a binary representation of an Appdash span
-// using encoding/gob.
+// using encoding/binary.
 //
-// The core piece of identifying information is the appdash.SpanID struct.
+// Encodes in the order of the TraceID, SpanID, Sampled, trace attribute len
+// then writes each kv pair in the order of `len_key key len_val val`
 func (t *Tracer) PropagateSpanAsBinary(
 	sp opentracing.Span,
 ) (
 	contextSnapshot []byte,
 	traceAttrs []byte,
 ) {
-	var contextSnapshotBuffer bytes.Buffer
 	s := sp.(*Span)
-
-	snapshot := spanContextSnapshot{s.Recorder.SpanID, s.sampled}
-
-	err := gob.NewEncoder(&contextSnapshotBuffer).Encode(snapshot)
-	if err != nil {
-		panic("error encoding SpanId")
+	traceId := uint64(s.Recorder.SpanID.Trace)
+	spanId := uint64(s.Recorder.SpanID.Span)
+	var sampleByte byte = 0
+	if s.sampled {
+		sampleByte = 1
 	}
 
-	var traceAttrsBuffer bytes.Buffer
-	err = gob.NewEncoder(&traceAttrsBuffer).Encode(s.attributes)
+	contextBuffer := new(bytes.Buffer)
+
+	err := binary.Write(contextBuffer, binary.BigEndian, traceId)
 	if err != nil {
-		panic("error encoding trace attributes")
+		panic("error encoding Trace ID")
 	}
 
-	return contextSnapshotBuffer.Bytes(), traceAttrsBuffer.Bytes()
+	err = binary.Write(contextBuffer, binary.BigEndian, spanId)
+	if err != nil {
+		panic("error encoding Trace ID")
+	}
+
+	err = binary.Write(contextBuffer, binary.BigEndian, sampleByte)
+	if err != nil {
+		panic("error encoding sampled bool")
+	}
+
+	attrBuffer := new(bytes.Buffer)
+
+	numAttrs := uint32(len(s.attributes))
+	err = binary.Write(attrBuffer, binary.BigEndian, numAttrs)
+	if err != nil {
+		panic("error encoding attribute size")
+	}
+
+	for k, v := range s.attributes {
+		kBytes := []byte(k)
+		err = binary.Write(attrBuffer, binary.BigEndian, int32(len(kBytes)))
+		err = binary.Write(attrBuffer, binary.BigEndian, kBytes)
+		vBytes := []byte(v)
+		err = binary.Write(attrBuffer, binary.BigEndian, int32(len(vBytes)))
+		err = binary.Write(attrBuffer, binary.BigEndian, vBytes)
+	}
+
+	return contextBuffer.Bytes(), attrBuffer.Bytes()
 }
 
 // JoinTraceFromBinary starts a new child Span with an optional operationName.
@@ -178,26 +198,59 @@ func (t *Tracer) JoinTraceFromBinary(
 	opentracing.Span,
 	error,
 ) {
-	snapshot := spanContextSnapshot{}
-	contextSnapshotBuffer := bytes.NewBuffer(contextSnapshot)
-	err := gob.NewDecoder(contextSnapshotBuffer).Decode(&snapshot)
+	var traceId, spanId uint64
+	var sampleByte byte
+	contextBuffer := bytes.NewBuffer(contextSnapshot)
+
+	err := binary.Read(contextBuffer, binary.BigEndian, &traceId)
 	if err != nil {
 		return nil, err
 	}
-
-	traceAttrMap := make(map[string]string)
-	traceAttrsBuffer := bytes.NewBuffer(traceAttrs)
-	err = gob.NewDecoder(traceAttrsBuffer).Decode(&traceAttrMap)
+	err = binary.Read(contextBuffer, binary.BigEndian, &spanId)
+	if err != nil {
+		return nil, err
+	}
+	err = binary.Read(contextBuffer, binary.BigEndian, &sampleByte)
 	if err != nil {
 		return nil, err
 	}
 
 	span := t.StartTrace(operationName)
-	span.(*Span).Recorder.SpanID = appdash.NewSpanID(snapshot.SpanID)
-	span.(*Span).sampled = snapshot.Sampled
+	span.(*Span).sampled = sampleByte != 0
+	span.(*Span).Recorder.SpanID = appdash.NewSpanID(
+		appdash.SpanID{Trace: appdash.ID(traceId), Span: appdash.ID(spanId)})
 
-	for k, v := range traceAttrMap {
-		span.SetTraceAttribute(k, v)
+	attrBuffer := bytes.NewBuffer(traceAttrs)
+	var numAttrs int32
+	err = binary.Read(attrBuffer, binary.BigEndian, &numAttrs)
+	if err != nil {
+		return nil, err
 	}
+
+	for i := 0; i < int(numAttrs); i++ {
+		var kLen, vLen int32
+		err = binary.Read(attrBuffer, binary.BigEndian, &kLen)
+		if err != nil {
+			return nil, err
+		}
+		kBytes := make([]byte, kLen)
+		err = binary.Read(attrBuffer, binary.BigEndian, &kBytes)
+		if err != nil {
+			return nil, err
+		}
+
+		err = binary.Read(attrBuffer, binary.BigEndian, &vLen)
+		if err != nil {
+			return nil, err
+		}
+		vBytes := make([]byte, vLen)
+		err = binary.Read(attrBuffer, binary.BigEndian, &vBytes)
+		if err != nil {
+			return nil, err
+		}
+
+		span.SetTraceAttribute(string(kBytes), string(vBytes))
+	}
+
 	return span, nil
 }
