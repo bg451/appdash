@@ -94,10 +94,12 @@ func (s *Span) Finish() {
 // The value is an arbritary type, but the system must know how to handle it,
 // otherwise the behavior is undefined when reporting the tags.
 func (s *Span) SetTag(key string, value interface{}) opentracing.Span {
-	s.tagLock.Lock()
-	defer s.tagLock.Unlock()
+	if s.sampled {
+		s.tagLock.Lock()
+		defer s.tagLock.Unlock()
 
-	s.tags[key] = value
+		s.tags[key] = value
+	}
 	return s
 }
 
@@ -105,6 +107,9 @@ func (s *Span) SetTag(key string, value interface{}) opentracing.Span {
 // Once (*Span).Finish() is called, all of the data is reported.
 // See `opentracing.LogData` for more details on the semantics of the data.
 func (s *Span) Log(data opentracing.LogData) {
+	if !s.sampled {
+		return
+	}
 	s.logLock.Lock()
 	defer s.logLock.Unlock()
 
@@ -113,13 +118,17 @@ func (s *Span) Log(data opentracing.LogData) {
 
 // LogEvent is short for Log(opentracing.LogData{Event: event, ...})
 func (s *Span) LogEvent(event string) {
-	s.Log(opentracing.LogData{Event: event, Timestamp: time.Now()})
+	if s.sampled {
+		s.Log(opentracing.LogData{Event: event, Timestamp: time.Now()})
+	}
 }
 
 // LogEventWithPayload is short for
 // Log(opentracing.LogData{Event: event, Payload: payload, ...}).
 func (s *Span) LogEventWithPayload(event string, payload interface{}) {
-	s.Log(opentracing.LogData{Event: event, Timestamp: time.Now(), Payload: payload})
+	if s.sampled {
+		s.Log(opentracing.LogData{Event: event, Timestamp: time.Now(), Payload: payload})
+	}
 }
 
 // SetTraceAttribute adds a key value pair to the trace's attributes.
