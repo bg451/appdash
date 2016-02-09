@@ -145,7 +145,7 @@ func (t *Tracer) PropagateSpanAsBinary(
 	s := sp.(*Span)
 	traceId := uint64(s.Recorder.SpanID.Trace)
 	spanId := uint64(s.Recorder.SpanID.Span)
-	var sampleByte byte = 0
+	sampleByte := byte(0)
 	if s.sampled {
 		sampleByte = 1
 	}
@@ -169,7 +169,7 @@ func (t *Tracer) PropagateSpanAsBinary(
 
 	attrBuffer := new(bytes.Buffer)
 
-	numAttrs := uint32(len(s.attributes))
+	numAttrs := int32(len(s.attributes))
 	err = binary.Write(attrBuffer, binary.BigEndian, numAttrs)
 	if err != nil {
 		panic("error encoding attribute size")
@@ -190,6 +190,11 @@ func (t *Tracer) PropagateSpanAsBinary(
 // JoinTraceFromBinary starts a new child Span with an optional operationName.
 // It uses the binary-encoded Span information from PropagateSpanAsBinary() as
 // the new Span's parent.
+//
+// Note: encoding/binary is extremely slow. For reference, some benchmarks I've
+// ran showed this to be 2 times slower than JoinTraceFromText. Propagating
+// binary is also 2x slower than text. This will be removed when
+// injectors/extractors become a thing though.
 func (t *Tracer) JoinTraceFromBinary(
 	operationName string,
 	contextSnapshot []byte,
@@ -200,17 +205,17 @@ func (t *Tracer) JoinTraceFromBinary(
 ) {
 	var traceId, spanId uint64
 	var sampleByte byte
-	contextBuffer := bytes.NewBuffer(contextSnapshot)
+	contextReader := bytes.NewReader(contextSnapshot)
 
-	err := binary.Read(contextBuffer, binary.BigEndian, &traceId)
+	err := binary.Read(contextReader, binary.BigEndian, &traceId)
 	if err != nil {
 		return nil, err
 	}
-	err = binary.Read(contextBuffer, binary.BigEndian, &spanId)
+	err = binary.Read(contextReader, binary.BigEndian, &spanId)
 	if err != nil {
 		return nil, err
 	}
-	err = binary.Read(contextBuffer, binary.BigEndian, &sampleByte)
+	err = binary.Read(contextReader, binary.BigEndian, &sampleByte)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +225,7 @@ func (t *Tracer) JoinTraceFromBinary(
 	span.(*Span).Recorder.SpanID = appdash.NewSpanID(
 		appdash.SpanID{Trace: appdash.ID(traceId), Span: appdash.ID(spanId)})
 
-	attrBuffer := bytes.NewBuffer(traceAttrs)
+	attrBuffer := bytes.NewReader(traceAttrs)
 	var numAttrs int32
 	err = binary.Read(attrBuffer, binary.BigEndian, &numAttrs)
 	if err != nil {
