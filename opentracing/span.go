@@ -4,18 +4,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 	"sourcegraph.com/sourcegraph/appdash"
 )
 
 // Span is the Appdash implemntation of the `opentracing.Span` interface.
 type Span struct {
 	Recorder      *appdash.Recorder
+	tracer        *Tracer
 	operationName string
 	startTime     time.Time
 	sampled       bool // If the trace is sampled or not
 
-	attrLock   sync.RWMutex
+	attrLock   sync.Mutex
 	attributes map[string]string
 
 	tagLock sync.Mutex
@@ -25,9 +26,10 @@ type Span struct {
 	logs    []opentracing.LogData
 }
 
-func newAppdashSpan(operationName string, recorder *appdash.Recorder, sampled bool) *Span {
+func newAppdashSpan(operationName string, tracer *Tracer, r *appdash.Recorder, sampled bool) *Span {
 	return &Span{
-		Recorder:      recorder,
+		Recorder:      r,
+		tracer:        tracer,
 		operationName: operationName,
 		startTime:     time.Now(),
 		sampled:       sampled,
@@ -43,22 +45,19 @@ func (s *Span) SetOperationName(operationName string) opentracing.Span {
 	return s
 }
 
-// StartChild returns a new Span.
-//
-// The child is created using the parent span's appdash.Recorder. The parent's
-// trace attributes are copied to this child as well.
-func (s *Span) StartChild(operationName string) opentracing.Span {
-	recorder := s.Recorder.Child()
-	span := newAppdashSpan(operationName, recorder, s.sampled)
-	span.attributes = s.attributes
-	return span
+func (s *Span) Tracer() opentracing.Tracer {
+	return s.tracer
 }
 
 // Finish ends the span.
 //
+func (s *Span) Finish() {
+	s.FinishWithOptions(opentracing.FinishOptions{FinishTime: time.Now()})
+}
+
 // Internally, the `appdash.Reporter` reports the span's name, tags,
 // attributes, and log events.
-func (s *Span) Finish() {
+func (s *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 	if !s.sampled {
 		return
 	}
@@ -79,8 +78,14 @@ func (s *Span) Finish() {
 		s.Recorder.Annotation(appdash.Annotation{Key: key, Value: []byte(value)})
 	}
 
-	// Log all of the stored `LogData`s
+	// TODO(bg): appdash.timespanEvent should be public and use recorder.Event
+	// with the used timestamps.
 	for _, log := range s.logs {
+		s.Recorder.Log(log.Event)
+	}
+
+	// Log all bulk log data
+	for _, log := range opts.BulkLogData {
 		s.Recorder.Log(log.Event)
 	}
 
@@ -158,9 +163,9 @@ func (s *Span) TraceAttribute(restrictedKey string) (value string) {
 		key = restrictedKey
 	}
 
-	s.attrLock.RLock()
+	s.attrLock.Lock()
 	value, ok := s.attributes[key]
-	s.attrLock.RUnlock()
+	s.attrLock.Unlock()
 	if !ok {
 		return ""
 	}

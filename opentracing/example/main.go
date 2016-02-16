@@ -31,7 +31,7 @@ func client() {
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		ctx, span := opentracing.BackgroundContextWithSpan(
-			opentracing.StartTrace("getInput"))
+			opentracing.StartSpan("getInput"))
 		// Make sure that global trace tag propagation works.
 		span.SetTraceAttribute("User", os.Getenv("USER"))
 		span.LogEventWithPayload("ctx", ctx)
@@ -47,8 +47,7 @@ func client() {
 
 		httpClient := &http.Client{}
 		httpReq, _ := http.NewRequest("POST", "http://localhost:8080/", bytes.NewReader([]byte(text)))
-		opentracing.PropagateSpanInHeader(
-			span, httpReq.Header, opentracing.GlobalTracer())
+		opentracing.InjectSpan(span, opentracing.GoHTTPHeader, httpReq.Header)
 		resp, err := httpClient.Do(httpReq)
 		if err != nil {
 			span.LogEventWithPayload("error", err)
@@ -122,7 +121,7 @@ func main() {
 	collector := appdash.NewLocalCollector(store)
 
 	recorder := appdash.NewRecorder(appdash.SpanID{}, collector)
-	opentracing.InitGlobalTracer(otappdash.NewTracer("dapperish_tester", recorder))
+	opentracing.InitGlobalTracer(otappdash.NewTracer(recorder))
 
 	go server()
 	go client()
