@@ -44,12 +44,12 @@ func (p *splitTextPropagator) InjectSpan(
 		fieldNameSpanID:  strconv.FormatUint(uint64(sc.Recorder.SpanID.Span), 10),
 		fieldNameSampled: strconv.FormatBool(sc.sampled),
 	}
-	sc.attrLock.Lock()
+	sc.Lock()
 	splitTextCarrier.TraceAttributes = make(map[string]string, len(sc.attributes))
 	for k, v := range sc.attributes {
 		splitTextCarrier.TraceAttributes[k] = v
 	}
-	sc.attrLock.Unlock()
+	sc.Unlock()
 	return nil
 }
 
@@ -142,7 +142,7 @@ func (p *splitBinaryPropagator) InjectSpan(
 		return err
 	}
 
-	sc.attrLock.Lock()
+	sc.Lock()
 	for k, v := range sc.attributes {
 		keyBytes := []byte(k)
 		err = binary.Write(attrsBuf, binary.BigEndian, int32(len(keyBytes)))
@@ -151,7 +151,7 @@ func (p *splitBinaryPropagator) InjectSpan(
 		err = binary.Write(attrsBuf, binary.BigEndian, int32(len(valBytes)))
 		err = binary.Write(attrsBuf, binary.BigEndian, valBytes)
 	}
-	sc.attrLock.Unlock()
+	sc.Unlock()
 
 	splitBinaryCarrier.TracerState = contextBuf.Bytes()
 	splitBinaryCarrier.TraceAttributes = attrsBuf.Bytes()

@@ -10,20 +10,16 @@ import (
 
 // Span is the Appdash implemntation of the `opentracing.Span` interface.
 type Span struct {
+	sync.Mutex
 	Recorder      *appdash.Recorder
 	tracer        *Tracer
 	operationName string
 	startTime     time.Time
 	sampled       bool
+	attributes    map[string]string
+	tags          map[string]interface{}
 
-	attrLock   sync.Mutex
-	attributes map[string]string
-
-	tagLock sync.Mutex
-	tags    map[string]interface{}
-
-	logLock sync.Mutex
-	logs    []opentracing.LogData
+	logs []opentracing.LogData
 }
 
 func newAppdashSpan(operationName string, tracer *Tracer) *Span {
@@ -57,6 +53,8 @@ func (s *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 	if !s.sampled {
 		return
 	}
+	s.Lock()
+	defer s.Unlock()
 
 	s.Recorder.Name(s.operationName) // Set the span's name
 
@@ -95,8 +93,8 @@ func (s *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 // The value is an arbritary type, but the system must know how to handle it,
 // otherwise the behavior is undefined when reporting the tags.
 func (s *Span) SetTag(key string, value interface{}) opentracing.Span {
-	s.tagLock.Lock()
-	defer s.tagLock.Unlock()
+	s.Lock()
+	defer s.Unlock()
 
 	s.tags[key] = value
 	return s
@@ -106,9 +104,8 @@ func (s *Span) SetTag(key string, value interface{}) opentracing.Span {
 // Once (*Span).Finish() is called, all of the data is reported.
 // See `opentracing.LogData` for more details on the semantics of the data.
 func (s *Span) Log(data opentracing.LogData) {
-	s.logLock.Lock()
-	defer s.logLock.Unlock()
-
+	s.Lock()
+	s.Unlock()
 	s.logs = append(s.logs, data)
 }
 
@@ -133,8 +130,8 @@ func (s *Span) SetTraceAttribute(restrictedKey, value string) opentracing.Span {
 		key = restrictedKey
 	}
 
-	s.attrLock.Lock()
-	defer s.attrLock.Unlock()
+	s.Lock()
+	defer s.Unlock()
 
 	s.attributes[key] = value
 	return s
@@ -150,9 +147,9 @@ func (s *Span) TraceAttribute(restrictedKey string) (value string) {
 		key = restrictedKey
 	}
 
-	s.attrLock.Lock()
+	s.Lock()
 	value, ok := s.attributes[key]
-	s.attrLock.Unlock()
+	s.Unlock()
 	if !ok {
 		return ""
 	}
