@@ -94,8 +94,13 @@ func (p *splitTextPropagator) JoinTrace(
 		return nil, fmt.Errorf("Only found %v of 3 required fields", requiredFieldCount)
 	}
 
-	rec := p.tracer.newChildRecorder(propagatedSpanID, traceID)
-	return newAppdashSpan(operationName, p.tracer, rec, sampled), nil
+	sp := newAppdashSpan(operationName, p.tracer)
+	sp.Recorder = p.tracer.newChildRecorder(propagatedSpanID, traceID)
+	sp.sampled = sampled
+	sp.attributes = splitTextCarrier.TraceAttributes
+	sp.tags = make(map[string]interface{}, 0)
+
+	return sp, nil
 }
 
 func (p *splitBinaryPropagator) InjectSpan(
@@ -215,10 +220,12 @@ func (p *splitBinaryPropagator) JoinTrace(
 		attrMap[string(keyBytes)] = string(valBytes)
 	}
 
-	rec := p.tracer.newChildRecorder(propagatedSpanID, traceID)
-
-	sp := newAppdashSpan(operationName, p.tracer, rec, sampledByte != 0)
+	sp := newAppdashSpan(operationName, p.tracer)
+	sp.Recorder = p.tracer.newChildRecorder(propagatedSpanID, traceID)
 	sp.attributes = attrMap
+	sp.sampled = sampledByte != 0
+	sp.tags = make(map[string]interface{}, 0)
+
 	return sp, nil
 }
 

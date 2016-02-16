@@ -14,27 +14,23 @@ type Span struct {
 	tracer        *Tracer
 	operationName string
 	startTime     time.Time
-	sampled       bool // If the trace is sampled or not
+	sampled       bool
 
 	attrLock   sync.Mutex
 	attributes map[string]string
 
 	tagLock sync.Mutex
-	tags    opentracing.Tags
+	tags    map[string]interface{}
 
 	logLock sync.Mutex
 	logs    []opentracing.LogData
 }
 
-func newAppdashSpan(operationName string, tracer *Tracer, r *appdash.Recorder, sampled bool) *Span {
+func newAppdashSpan(operationName string, tracer *Tracer) *Span {
 	return &Span{
-		Recorder:      r,
-		tracer:        tracer,
 		operationName: operationName,
+		tracer:        tracer,
 		startTime:     time.Now(),
-		sampled:       sampled,
-		attributes:    make(map[string]string),
-		tags:          make(opentracing.Tags),
 		logs:          make([]opentracing.LogData, 0),
 	}
 }
@@ -99,12 +95,10 @@ func (s *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 // The value is an arbritary type, but the system must know how to handle it,
 // otherwise the behavior is undefined when reporting the tags.
 func (s *Span) SetTag(key string, value interface{}) opentracing.Span {
-	if s.sampled {
-		s.tagLock.Lock()
-		defer s.tagLock.Unlock()
+	s.tagLock.Lock()
+	defer s.tagLock.Unlock()
 
-		s.tags[key] = value
-	}
+	s.tags[key] = value
 	return s
 }
 
@@ -112,9 +106,6 @@ func (s *Span) SetTag(key string, value interface{}) opentracing.Span {
 // Once (*Span).Finish() is called, all of the data is reported.
 // See `opentracing.LogData` for more details on the semantics of the data.
 func (s *Span) Log(data opentracing.LogData) {
-	if !s.sampled {
-		return
-	}
 	s.logLock.Lock()
 	defer s.logLock.Unlock()
 
@@ -123,17 +114,13 @@ func (s *Span) Log(data opentracing.LogData) {
 
 // LogEvent is short for Log(opentracing.LogData{Event: event, ...})
 func (s *Span) LogEvent(event string) {
-	if s.sampled {
-		s.Log(opentracing.LogData{Event: event, Timestamp: time.Now()})
-	}
+	s.Log(opentracing.LogData{Event: event, Timestamp: time.Now()})
 }
 
 // LogEventWithPayload is short for
 // Log(opentracing.LogData{Event: event, Payload: payload, ...}).
 func (s *Span) LogEventWithPayload(event string, payload interface{}) {
-	if s.sampled {
-		s.Log(opentracing.LogData{Event: event, Timestamp: time.Now(), Payload: payload})
-	}
+	s.Log(opentracing.LogData{Event: event, Timestamp: time.Now(), Payload: payload})
 }
 
 // SetTraceAttribute adds a key value pair to the trace's attributes.
