@@ -11,8 +11,6 @@ import (
 
 var tags []string
 
-func noTraceFunc(int64) bool { return false }
-
 func init() {
 	tags = make([]string, 1000)
 	for j := 0; j < len(tags); j++ {
@@ -20,12 +18,7 @@ func init() {
 	}
 }
 
-type noopCollector struct{}
-
-func (c *noopCollector) Collect(s appdash.SpanID, ans ...appdash.Annotation) error {
-	return nil
-}
-
+// Credit to github.com/opentracing/opentracing-go/blob/b95bb770247870c2cf2b194a52f77d2077349f75/standardtracer/bench_test.go
 func benchmarkWithOps(b *testing.B, numEvent, numTag, numAttr int) {
 	var r noopCollector
 	recorder := appdash.NewRecorder(appdash.SpanID{}, &r)

@@ -145,11 +145,22 @@ func (p *splitBinaryPropagator) InjectSpan(
 	sc.Lock()
 	for k, v := range sc.attributes {
 		keyBytes := []byte(k)
-		err = binary.Write(attrsBuf, binary.BigEndian, int32(len(keyBytes)))
-		err = binary.Write(attrsBuf, binary.BigEndian, keyBytes)
+		lenKeyBytes := int32(len(keyBytes))
+		if err := binary.Write(attrsBuf, binary.BigEndian, lenKeyBytes); err != nil {
+			return err
+		}
+		if err := binary.Write(attrsBuf, binary.BigEndian, keyBytes); err != nil {
+			return err
+		}
+
 		valBytes := []byte(v)
-		err = binary.Write(attrsBuf, binary.BigEndian, int32(len(valBytes)))
-		err = binary.Write(attrsBuf, binary.BigEndian, valBytes)
+		lenValBytes := int32(len(valBytes))
+		if err := binary.Write(attrsBuf, binary.BigEndian, lenValBytes); err != nil {
+			return err
+		}
+		if err := binary.Write(attrsBuf, binary.BigEndian, valBytes); err != nil {
+			return err
+		}
 	}
 	sc.Unlock()
 
