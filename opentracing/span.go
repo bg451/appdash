@@ -1,6 +1,7 @@
 package opentracing
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -31,28 +32,33 @@ func newAppdashSpan(operationName string, tracer *Tracer) *Span {
 	}
 }
 
-// SetOperationName setss the name of the span, overwriting the previous value.
+// SetOperationName sets the name of the span, overwriting the previous value.
 func (s *Span) SetOperationName(operationName string) opentracing.Span {
 	s.operationName = operationName
 	return s
 }
 
+// Tracer returns the interal opentracing.Tracer
 func (s *Span) Tracer() opentracing.Tracer {
 	return s.tracer
 }
 
 // Finish ends the span.
 //
+// Defers to s.FinishWithOptions() with FinishTime = time.Now()
 func (s *Span) Finish() {
 	s.FinishWithOptions(opentracing.FinishOptions{FinishTime: time.Now()})
 }
 
+// FinishWithOptions finishes the span with opentracing.FinishOptions.
+//
 // Internally, the `appdash.Reporter` reports the span's name, tags,
 // attributes, and log events.
 func (s *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 	if !s.sampled {
 		return
 	}
+
 	s.Lock()
 	defer s.Unlock()
 
@@ -60,11 +66,8 @@ func (s *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 
 	// Convert span tags to annotations.
 	for key, value := range s.tags {
-		// XXX: I'm not sure right now how to represente arbritrary structs,
-		// so strings will have to do for now.
-		if v, ok := value.(string); ok {
-			s.Recorder.Annotation(appdash.Annotation{Key: key, Value: []byte(v)})
-		}
+		val := []byte(fmt.Sprintf("%v", value))
+		s.Recorder.Annotation(appdash.Annotation{Key: key, Value: val})
 	}
 
 	// Record any trace attributes as annotations.
@@ -72,20 +75,25 @@ func (s *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 		s.Recorder.Annotation(appdash.Annotation{Key: key, Value: []byte(value)})
 	}
 
-	// TODO(bg): appdash.timespanEvent should be public and use recorder.Event
-	// with the used timestamps.
+	// XXX(bg): I'm not too sure how this works in Appdash, but there needs to
+	// be a way to record a key value pair where the value is the payload.
 	for _, log := range s.logs {
-		s.Recorder.Log(log.Event)
+		s.Recorder.LogWithTimestamp(log.Event, log.Timestamp)
 	}
 
 	// Log all bulk log data
 	for _, log := range opts.BulkLogData {
-		s.Recorder.Log(log.Event)
+		s.Recorder.LogWithTimestamp(log.Event, log.Timestamp)
+	}
+
+	endTime := opts.FinishTime
+	if endTime == timeZeroValue {
+		endTime = time.Now()
 	}
 
 	// Send a SpanCompletionEvent, which satisfies the appdash.Timespan interface
 	// By doing this, we can actually see how long spans took.
-	s.Recorder.Event(spanCompletionEvent{s.startTime, time.Now()})
+	s.Recorder.Event(spanCompletionEvent{s.startTime, endTime})
 }
 
 // SetTag sets a key value pair.
