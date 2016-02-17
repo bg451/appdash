@@ -1,7 +1,7 @@
 package main
 
 // This is a near wholesale copy of the opentracing-go/examples/dapperish.go
-// file. The only thing that has been changed is the addition of an appdash
+// file. The only thing that has been changed is the addition of an Appdash
 // store, traceapp, and appdash/opentracing Tracer. Everything else is the
 // exact same to show that it changing backends is O(1).
 // One thing I've noticed is the clash of package names, since there is

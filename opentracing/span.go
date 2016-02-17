@@ -9,7 +9,7 @@ import (
 	"sourcegraph.com/sourcegraph/appdash"
 )
 
-// Span is the Appdash implemntation of the `opentracing.Span` interface.
+// Span is the Appdash implementation of the `opentracing.Span` interface.
 type Span struct {
 	sync.Mutex
 	Recorder      *appdash.Recorder
@@ -98,7 +98,7 @@ func (s *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 
 // SetTag sets a key value pair.
 //
-// The value is an arbritary type, but the system must know how to handle it,
+// The value is an arbitrary type, but the system must know how to handle it,
 // otherwise the behavior is undefined when reporting the tags.
 func (s *Span) SetTag(key string, value interface{}) opentracing.Span {
 	s.Lock()
@@ -145,8 +145,8 @@ func (s *Span) SetTraceAttribute(restrictedKey, value string) opentracing.Span {
 	return s
 }
 
-// TraceAttribute retuns the value for a given key. If the key doesn't exist,
-// an empty string is returned. It will attempt to canoncicalize the key,
+// TraceAttribute returns the value for a given key. If the key doesn't exist,
+// an empty string is returned. It will attempt to canonicalize the key,
 // however if it doesn't match the match the expected pattern it will use the
 // provided key.
 func (s *Span) TraceAttribute(restrictedKey string) (value string) {

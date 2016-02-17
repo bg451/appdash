@@ -8,11 +8,11 @@ import (
 )
 
 var (
-	// The zero value of an unitialized time.Time
+	// The zero value of an uninitialized time.Time
 	timeZeroValue = time.Time{}
 )
 
-// Tracer is the appdash implementation of the opentracing-go API.
+// Tracer is the Appdash implementation of the opentracing-go API.
 type Tracer struct {
 	recorder         *appdash.Recorder
 	options          Options
@@ -21,7 +21,11 @@ type Tracer struct {
 	goHTTPPropagator *goHTTPPropagator
 }
 
+// Options is a set of variable options for the tracer, mainly a sampling function.
 type Options struct {
+	// SampleFunc is a sampling function that takes in the TraceID of a trace
+	// and determines whether the trace should be sampled or not. For example
+	//   func SampleFunc(traceID int64) bool { return traceID % 1024 }
 	SampleFunc func(int64) bool
 }
 
@@ -48,6 +52,7 @@ func NewTracerWithOptions(r *appdash.Recorder, opts Options) opentracing.Tracer 
 	return t
 }
 
+// StartSpan starts a new root span.
 func (t *Tracer) StartSpan(operationName string) opentracing.Span {
 	return t.StartSpanWithOptions(opentracing.StartSpanOptions{OperationName: operationName})
 }
@@ -103,6 +108,8 @@ func (t *Tracer) Injector(format interface{}) opentracing.Injector {
 	return nil
 }
 
+// newChildRecorder creates and returns a child recorder from the tracer's
+// recorder, overwriting the internal SpanID.
 func (t *Tracer) newChildRecorder(parentSpanID, traceID uint64) *appdash.Recorder {
 	rec := t.recorder.Child()
 	spanID := appdash.NewSpanID(

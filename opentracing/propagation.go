@@ -178,6 +178,7 @@ func (p *splitBinaryPropagator) JoinTrace(
 	if !ok {
 		return nil, opentracing.ErrInvalidCarrier
 	}
+
 	// Handle the trace, span ids, and sampled status.
 	contextReader := bytes.NewReader(splitBinaryCarrier.TracerState)
 	var traceID, propagatedSpanID uint64
@@ -222,6 +223,7 @@ func (p *splitBinaryPropagator) JoinTrace(
 		if err != nil {
 			return nil, opentracing.ErrTraceCorrupted
 		}
+
 		valBytes := make([]byte, valLen)
 		err = binary.Read(attrsReader, binary.BigEndian, &valBytes)
 		if err != nil {
