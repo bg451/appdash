@@ -15,7 +15,7 @@ func TestSplitTextPropagator(t *testing.T) {
 	key := "key"
 	value := "value"
 	sp1 := tracer.StartSpan("span_a")
-	sp1.SetTraceAttribute(key, value)
+	sp1.SetBaggageItem(key, value)
 
 	// Inject the span into the carrier
 	carrier := opentracing.NewSplitTextCarrier()
@@ -37,7 +37,7 @@ func TestSplitBinaryPropagator(t *testing.T) {
 	key := "key"
 	value := "value"
 	sp1 := tracer.StartSpan("span_a")
-	sp1.SetTraceAttribute(key, value)
+	sp1.SetBaggageItem(key, value)
 
 	// Inject the span into the carrier
 	carrier := opentracing.NewSplitBinaryCarrier()
@@ -72,13 +72,13 @@ func compareSpans(otParent, otChild opentracing.Span, t *testing.T) {
 			parent.sampled, child.sampled)
 	}
 
-	if len(parent.attributes) != len(child.attributes) {
-		t.Errorf("Expected amount of trace attributes to be the same, got %d, %d",
-			len(parent.attributes), len(child.attributes))
+	if len(parent.baggage) != len(child.baggage) {
+		t.Errorf("Expected amount of trace baggage to be the same, got %d, %d",
+			len(parent.baggage), len(child.baggage))
 	}
 
-	for key, parentValue := range parent.attributes {
-		childValue, ok := child.attributes[key]
+	for key, parentValue := range parent.baggage {
+		childValue, ok := child.baggage[key]
 		if !ok {
 			t.Errorf("Expected child span to have parent trace attribute %s", key)
 		}

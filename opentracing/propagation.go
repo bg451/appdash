@@ -45,9 +45,9 @@ func (p *splitTextPropagator) InjectSpan(
 		fieldNameSampled: strconv.FormatBool(sc.sampled),
 	}
 	sc.Lock()
-	splitTextCarrier.TraceAttributes = make(map[string]string, len(sc.attributes))
-	for k, v := range sc.attributes {
-		splitTextCarrier.TraceAttributes[k] = v
+	splitTextCarrier.Baggage = make(map[string]string, len(sc.baggage))
+	for k, v := range sc.baggage {
+		splitTextCarrier.Baggage[k] = v
 	}
 	sc.Unlock()
 	return nil
@@ -97,7 +97,7 @@ func (p *splitTextPropagator) JoinTrace(
 	sp := newAppdashSpan(operationName, p.tracer)
 	sp.Recorder = p.tracer.newChildRecorder(propagatedSpanID, traceID)
 	sp.sampled = sampled
-	sp.attributes = splitTextCarrier.TraceAttributes
+	sp.baggage = splitTextCarrier.Baggage
 	sp.tags = make(map[string]interface{}, 0)
 
 	return sp, nil
@@ -135,37 +135,37 @@ func (p *splitBinaryPropagator) InjectSpan(
 		return err
 	}
 
-	// Handle the attributes.
-	attrsBuf := new(bytes.Buffer)
-	err = binary.Write(attrsBuf, binary.BigEndian, int32(len(sc.attributes)))
+	// Handle the baggage.
+	baggageBuf := new(bytes.Buffer)
+	err = binary.Write(baggageBuf, binary.BigEndian, int32(len(sc.baggage)))
 	if err != nil {
 		return err
 	}
 
 	sc.Lock()
-	for k, v := range sc.attributes {
+	for k, v := range sc.baggage {
 		keyBytes := []byte(k)
 		lenKeyBytes := int32(len(keyBytes))
-		if err := binary.Write(attrsBuf, binary.BigEndian, lenKeyBytes); err != nil {
+		if err := binary.Write(baggageBuf, binary.BigEndian, lenKeyBytes); err != nil {
 			return err
 		}
-		if err := binary.Write(attrsBuf, binary.BigEndian, keyBytes); err != nil {
+		if err := binary.Write(baggageBuf, binary.BigEndian, keyBytes); err != nil {
 			return err
 		}
 
 		valBytes := []byte(v)
 		lenValBytes := int32(len(valBytes))
-		if err := binary.Write(attrsBuf, binary.BigEndian, lenValBytes); err != nil {
+		if err := binary.Write(baggageBuf, binary.BigEndian, lenValBytes); err != nil {
 			return err
 		}
-		if err := binary.Write(attrsBuf, binary.BigEndian, valBytes); err != nil {
+		if err := binary.Write(baggageBuf, binary.BigEndian, valBytes); err != nil {
 			return err
 		}
 	}
 	sc.Unlock()
 
 	splitBinaryCarrier.TracerState = contextBuf.Bytes()
-	splitBinaryCarrier.TraceAttributes = attrsBuf.Bytes()
+	splitBinaryCarrier.Baggage = baggageBuf.Bytes()
 	return nil
 }
 
@@ -197,45 +197,45 @@ func (p *splitBinaryPropagator) JoinTrace(
 		return nil, opentracing.ErrTraceCorrupted
 	}
 
-	// Handle the attributes.
-	attrsReader := bytes.NewReader(splitBinaryCarrier.TraceAttributes)
-	var numAttrs int32
-	err = binary.Read(attrsReader, binary.BigEndian, &numAttrs)
+	// Handle the baggage.
+	baggageReader := bytes.NewReader(splitBinaryCarrier.Baggage)
+	var numItems int32
+	err = binary.Read(baggageReader, binary.BigEndian, &numItems)
 	if err != nil {
 		return nil, opentracing.ErrTraceCorrupted
 	}
-	iNumAttrs := int(numAttrs)
-	attrMap := make(map[string]string, iNumAttrs)
-	for i := 0; i < iNumAttrs; i++ {
+	iNumItems := int(numItems)
+	baggageMap := make(map[string]string, iNumItems)
+	for i := 0; i < iNumItems; i++ {
 		var keyLen int32
-		err = binary.Read(attrsReader, binary.BigEndian, &keyLen)
+		err = binary.Read(baggageReader, binary.BigEndian, &keyLen)
 		if err != nil {
 			return nil, opentracing.ErrTraceCorrupted
 		}
 		keyBytes := make([]byte, keyLen)
-		err = binary.Read(attrsReader, binary.BigEndian, &keyBytes)
+		err = binary.Read(baggageReader, binary.BigEndian, &keyBytes)
 		if err != nil {
 			return nil, opentracing.ErrTraceCorrupted
 		}
 
 		var valLen int32
-		err = binary.Read(attrsReader, binary.BigEndian, &valLen)
+		err = binary.Read(baggageReader, binary.BigEndian, &valLen)
 		if err != nil {
 			return nil, opentracing.ErrTraceCorrupted
 		}
 
 		valBytes := make([]byte, valLen)
-		err = binary.Read(attrsReader, binary.BigEndian, &valBytes)
+		err = binary.Read(baggageReader, binary.BigEndian, &valBytes)
 		if err != nil {
 			return nil, opentracing.ErrTraceCorrupted
 		}
 
-		attrMap[string(keyBytes)] = string(valBytes)
+		baggageMap[string(keyBytes)] = string(valBytes)
 	}
 
 	sp := newAppdashSpan(operationName, p.tracer)
 	sp.Recorder = p.tracer.newChildRecorder(propagatedSpanID, traceID)
-	sp.attributes = attrMap
+	sp.baggage = baggageMap
 	sp.sampled = sampledByte != 0
 	sp.tags = make(map[string]interface{}, 0)
 
@@ -243,8 +243,8 @@ func (p *splitBinaryPropagator) JoinTrace(
 }
 
 const (
-	tracerStateHeaderName = "Tracer-State"
-	traceAttrsHeaderName  = "Trace-Attributes"
+	tracerStateHeaderName  = "Tracer-State"
+	traceBaggageHeaderName = "Trace-Baggage"
 )
 
 func (p *goHTTPPropagator) InjectSpan(
@@ -261,8 +261,8 @@ func (p *goHTTPPropagator) InjectSpan(
 	header := carrier.(http.Header)
 	header.Add(tracerStateHeaderName, base64.StdEncoding.EncodeToString(
 		splitBinaryCarrier.TracerState))
-	header.Add(traceAttrsHeaderName, base64.StdEncoding.EncodeToString(
-		splitBinaryCarrier.TraceAttributes))
+	header.Add(traceBaggageHeaderName, base64.StdEncoding.EncodeToString(
+		splitBinaryCarrier.Baggage))
 
 	return nil
 }
@@ -277,23 +277,23 @@ func (p *goHTTPPropagator) JoinTrace(
 	if !found || len(tracerStateBase64) == 0 {
 		return nil, opentracing.ErrTraceNotFound
 	}
-	traceAttrsBase64, found := header[http.CanonicalHeaderKey(traceAttrsHeaderName)]
-	if !found || len(traceAttrsBase64) == 0 {
+	baggageBase64, found := header[http.CanonicalHeaderKey(traceBaggageHeaderName)]
+	if !found || len(baggageBase64) == 0 {
 		return nil, opentracing.ErrTraceNotFound
 	}
 	tracerStateBinary, err := base64.StdEncoding.DecodeString(tracerStateBase64[0])
 	if err != nil {
 		return nil, opentracing.ErrTraceCorrupted
 	}
-	traceAttrsBinary, err := base64.StdEncoding.DecodeString(traceAttrsBase64[0])
+	baggageBinary, err := base64.StdEncoding.DecodeString(baggageBase64[0])
 	if err != nil {
 		return nil, opentracing.ErrTraceCorrupted
 	}
 
 	// Defer to SplitBinary for the real work.
 	splitBinaryCarrier := &opentracing.SplitBinaryCarrier{
-		TracerState:     tracerStateBinary,
-		TraceAttributes: traceAttrsBinary,
+		TracerState: tracerStateBinary,
+		Baggage:     baggageBinary,
 	}
 	return p.splitBinaryPropagator.JoinTrace(operationName, splitBinaryCarrier)
 }

@@ -17,7 +17,7 @@ type Span struct {
 	operationName string
 	startTime     time.Time
 	sampled       bool
-	attributes    map[string]string
+	baggage       map[string]string
 	tags          map[string]interface{}
 
 	logs []opentracing.LogData
@@ -53,7 +53,7 @@ func (s *Span) Finish() {
 // FinishWithOptions finishes the span with opentracing.FinishOptions.
 //
 // Internally, the `appdash.Reporter` reports the span's name, tags,
-// attributes, and log events.
+// baggage, and log events.
 func (s *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 	if !s.sampled {
 		return
@@ -70,15 +70,15 @@ func (s *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 		s.Recorder.Annotation(appdash.Annotation{Key: key, Value: val})
 	}
 
-	// Record any trace attributes as annotations.
-	for key, value := range s.attributes {
+	// Record any baggage as annotations.
+	for key, value := range s.baggage {
 		s.Recorder.Annotation(appdash.Annotation{Key: key, Value: []byte(value)})
 	}
 
 	// XXX(bg): I'm not too sure how this works in Appdash, but there needs to
 	// be a way to record a key value pair where the value is the payload.
 	for _, log := range s.logs {
-		s.Recorder.LogWithTimestamp(log.Event, log.Timestamp)
+		s.Recorder.LogWithTimestamp(fmt.Sprintf("%s %v", log.Event, log.Payload), log.Timestamp)
 	}
 
 	// Log all bulk log data
@@ -128,12 +128,12 @@ func (s *Span) LogEventWithPayload(event string, payload interface{}) {
 	s.Log(opentracing.LogData{Event: event, Timestamp: time.Now(), Payload: payload})
 }
 
-// SetTraceAttribute adds a key value pair to the trace's attributes.
+// SetBaggageItems adds a baggage item to the trace.
 //
-// If the supplied key doesn't match opentracing.CanonicalizeTraceAttributeKey,
+// If the supplied key doesn't match opentracing.CanonicalizeBaggageKey,
 // the key will still be used, however the behavior is undefined.
-func (s *Span) SetTraceAttribute(restrictedKey, value string) opentracing.Span {
-	key, valid := opentracing.CanonicalizeTraceAttributeKey(restrictedKey)
+func (s *Span) SetBaggageItem(restrictedKey, value string) opentracing.Span {
+	key, valid := opentracing.CanonicalizeBaggageKey(restrictedKey)
 	if !valid {
 		key = restrictedKey
 	}
@@ -141,22 +141,22 @@ func (s *Span) SetTraceAttribute(restrictedKey, value string) opentracing.Span {
 	s.Lock()
 	defer s.Unlock()
 
-	s.attributes[key] = value
+	s.baggage[key] = value
 	return s
 }
 
-// TraceAttribute returns the value for a given key. If the key doesn't exist,
+// BaggageItem returns the value for a given key. If the key doesn't exist,
 // an empty string is returned. It will attempt to canonicalize the key,
 // however if it doesn't match the match the expected pattern it will use the
 // provided key.
-func (s *Span) TraceAttribute(restrictedKey string) (value string) {
-	key, valid := opentracing.CanonicalizeTraceAttributeKey(restrictedKey)
+func (s *Span) BaggageItem(restrictedKey string) (value string) {
+	key, valid := opentracing.CanonicalizeBaggageKey(restrictedKey)
 	if !valid {
 		key = restrictedKey
 	}
 
 	s.Lock()
-	value, ok := s.attributes[key]
+	value, ok := s.baggage[key]
 	s.Unlock()
 	if !ok {
 		return ""

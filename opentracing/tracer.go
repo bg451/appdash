@@ -79,7 +79,7 @@ func (t *Tracer) StartSpanWithOptions(opts opentracing.StartSpanOptions) opentra
 		sp.tags = make(map[string]interface{}, 0)
 	}
 
-	sp.attributes = make(map[string]string, 0)
+	sp.baggage = make(map[string]string, 0)
 
 	return sp
 }

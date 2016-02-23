@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"sourcegraph.com/sourcegraph/appdash"
-	otappdash "sourcegraph.com/sourcegraph/appdash/opentracing"
+	appdashtracer "sourcegraph.com/sourcegraph/appdash/opentracing"
 	"sourcegraph.com/sourcegraph/appdash/traceapp"
 
 	"github.com/opentracing/opentracing-go"
@@ -121,7 +121,7 @@ func main() {
 	collector := appdash.NewLocalCollector(store)
 
 	recorder := appdash.NewRecorder(appdash.SpanID{}, collector)
-	opentracing.InitGlobalTracer(otappdash.NewTracer(recorder))
+	opentracing.InitGlobalTracer(appdashtracer.NewTracer(recorder))
 
 	go server()
 	go client()

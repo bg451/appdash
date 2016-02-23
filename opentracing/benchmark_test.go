@@ -40,7 +40,7 @@ func benchmarkWithOpsAndCB(b *testing.B, create func() opentracing.Span,
 			sp.SetTag(tags[j], nil)
 		}
 		for j := 0; j < numAttr; j++ {
-			sp.SetTraceAttribute(tags[j], tags[j])
+			sp.SetBaggageItem(tags[j], tags[j])
 		}
 		sp.Finish()
 	}
