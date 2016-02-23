@@ -86,12 +86,12 @@ func (p *splitTextPropagator) JoinTrace(
 			}
 			requiredFieldCount++
 		default:
-			return nil, fmt.Errorf("Unknown TracerState field: %v", k)
+			return nil, fmt.Errorf("unknown TracerState field: %v", k)
 		}
 	}
 
 	if requiredFieldCount < 3 {
-		return nil, fmt.Errorf("Only found %v of 3 required fields", requiredFieldCount)
+		return nil, fmt.Errorf("only found %v of 3 required fields", requiredFieldCount)
 	}
 
 	sp := newAppdashSpan(operationName, p.tracer)

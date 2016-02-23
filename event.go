@@ -126,6 +126,7 @@ func init() {
 	RegisterEvent(logEvent{})
 	RegisterEvent(msgEvent{})
 	RegisterEvent(timespanEvent{})
+	RegisterEvent(Timespan{})
 }
 
 // UnmarshalEvents unmarshals all events found in anns into
@@ -178,6 +179,17 @@ type timespanEvent struct {
 func (timespanEvent) Schema() string      { return "timespan" }
 func (ev timespanEvent) Start() time.Time { return ev.S }
 func (ev timespanEvent) End() time.Time   { return ev.E }
+
+// Timespan is an event that satisfies the appdash.TimespanEvent interface.
+// This is used to show its beginning and end times of a span.
+type Timespan struct {
+	S time.Time `trace:"Span.Start"`
+	E time.Time `trace:"Span.End"`
+}
+
+func (s Timespan) Schema() string   { return "spancompletion" }
+func (s Timespan) Start() time.Time { return s.S }
+func (s Timespan) End() time.Time   { return s.E }
 
 // A TimestampedEvent is an Event with a timestamp.
 type TimestampedEvent interface {

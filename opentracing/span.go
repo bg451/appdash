@@ -9,7 +9,7 @@ import (
 	"sourcegraph.com/sourcegraph/appdash"
 )
 
-// Span is the Appdash implementation of the `opentracing.Span` interface.
+// Span is the Appdash implementation of the opentracing.Span interface.
 type Span struct {
 	sync.Mutex
 	Recorder      *appdash.Recorder
@@ -38,21 +38,21 @@ func (s *Span) SetOperationName(operationName string) opentracing.Span {
 	return s
 }
 
-// Tracer returns the interal opentracing.Tracer
+// Tracer returns the internal opentracing.Tracer
 func (s *Span) Tracer() opentracing.Tracer {
 	return s.tracer
 }
 
-// Finish ends the span.
+// Finish ends the span. It is shorthand for:
 //
-// Defers to s.FinishWithOptions() with FinishTime = time.Now()
+// s.FinishWithOptions(opentracing.FinishOptions{FinishTime: time.Now()})
 func (s *Span) Finish() {
 	s.FinishWithOptions(opentracing.FinishOptions{FinishTime: time.Now()})
 }
 
 // FinishWithOptions finishes the span with opentracing.FinishOptions.
 //
-// Internally, the `appdash.Reporter` reports the span's name, tags,
+// Internally, the appdash.Reporter reports the span's name, tags,
 // baggage, and log events.
 func (s *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 	if !s.sampled {
@@ -62,7 +62,7 @@ func (s *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 	s.Lock()
 	defer s.Unlock()
 
-	s.Recorder.Name(s.operationName) // Set the span's name
+	s.Recorder.Name(s.operationName) // Record the span's name
 
 	// Convert span tags to annotations.
 	for key, value := range s.tags {
@@ -78,7 +78,7 @@ func (s *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 	// XXX(bg): I'm not too sure how this works in Appdash, but there needs to
 	// be a way to record a key value pair where the value is the payload.
 	for _, log := range s.logs {
-		s.Recorder.LogWithTimestamp(fmt.Sprintf("%s %v", log.Event, log.Payload), log.Timestamp)
+		s.Recorder.LogWithTimestamp(log.Event, log.Timestamp)
 	}
 
 	// Log all bulk log data
@@ -91,12 +91,12 @@ func (s *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 		endTime = time.Now()
 	}
 
-	// Send a SpanCompletionEvent, which satisfies the appdash.Timespan interface
-	// By doing this, we can actually see how long spans took.
-	s.Recorder.Event(spanCompletionEvent{s.startTime, endTime})
+	// Send a Timespan event. By doing this, we can actually see how long spans
+	// took in the Appdash UI.
+	s.Recorder.Event(appdash.Timespan{S: s.startTime, E: endTime})
 }
 
-// SetTag sets a key value pair.
+// SetTag sets a key value tag.
 //
 // The value is an arbitrary type, but the system must know how to handle it,
 // otherwise the behavior is undefined when reporting the tags.
@@ -110,7 +110,7 @@ func (s *Span) SetTag(key string, value interface{}) opentracing.Span {
 
 // Log does not report the data right away, but instead stores it internally.
 // Once (*Span).Finish() is called, all of the data is reported.
-// See `opentracing.LogData` for more details on the semantics of the data.
+// See opentracing.LogData for more details on the semantics of the data.
 func (s *Span) Log(data opentracing.LogData) {
 	s.Lock()
 	s.Unlock()

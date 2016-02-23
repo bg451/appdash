@@ -35,10 +35,10 @@ func defaultOptions() Options {
 	}
 }
 
-// NewTracer returns a new Tracer that implements the `opentracing.Tracer`
-// interface.
+// NewTracer returns a new opentracing.Tracer which records events to the given
+// Appdash recorder.
 //
-// NewAppdashTracer requires an `appdash.Recorder` in order to serialize and
+// NewAppdashTracer requires an appdash.Recorder in order to serialize and
 // write events to an Appdash store.
 func NewTracer(r *appdash.Recorder) opentracing.Tracer {
 	return NewTracerWithOptions(r, defaultOptions())
