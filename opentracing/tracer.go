@@ -84,28 +84,28 @@ func (t *Tracer) StartSpanWithOptions(opts opentracing.StartSpanOptions) opentra
 	return sp
 }
 
-func (t *Tracer) Extractor(format interface{}) opentracing.Extractor {
+func (t *Tracer) Join(operationName string, format, carrier interface{}) (opentracing.Span, error) {
 	switch format {
 	case opentracing.SplitText:
-		return t.textPropagator
+		return t.textPropagator.Join(operationName, carrier)
 	case opentracing.SplitBinary:
-		return t.binaryPropagator
+		return t.binaryPropagator.Join(operationName, carrier)
 	case opentracing.GoHTTPHeader:
-		return t.goHTTPPropagator
+		return t.goHTTPPropagator.Join(operationName, carrier)
 	}
-	return nil
+	return nil, opentracing.ErrUnsupportedFormat
 }
 
-func (t *Tracer) Injector(format interface{}) opentracing.Injector {
+func (t *Tracer) Inject(sp opentracing.Span, format, carrier interface{}) error {
 	switch format {
 	case opentracing.SplitText:
-		return t.textPropagator
+		return t.textPropagator.Inject(sp, carrier)
 	case opentracing.SplitBinary:
-		return t.binaryPropagator
+		return t.binaryPropagator.Inject(sp, carrier)
 	case opentracing.GoHTTPHeader:
-		return t.goHTTPPropagator
+		return t.goHTTPPropagator.Inject(sp, carrier)
 	}
-	return nil
+	return opentracing.ErrUnsupportedFormat
 }
 
 // newChildRecorder creates and returns a child recorder from the tracer's

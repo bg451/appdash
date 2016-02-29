@@ -19,10 +19,10 @@ func TestSplitTextPropagator(t *testing.T) {
 
 	// Inject the span into the carrier
 	carrier := opentracing.NewSplitTextCarrier()
-	tracer.Injector(opentracing.SplitText).InjectSpan(sp1, carrier)
+	tracer.Inject(sp1, opentracing.SplitText, carrier)
 
 	// Extract it.
-	sp2, err := tracer.Extractor(opentracing.SplitText).JoinTrace("", carrier)
+	sp2, err := tracer.Join("", opentracing.SplitText, carrier)
 	if err != nil {
 		t.Errorf("Error extracting span %s", err)
 	}
@@ -41,10 +41,10 @@ func TestSplitBinaryPropagator(t *testing.T) {
 
 	// Inject the span into the carrier
 	carrier := opentracing.NewSplitBinaryCarrier()
-	tracer.Injector(opentracing.SplitBinary).InjectSpan(sp1, carrier)
+	tracer.Inject(sp1, opentracing.SplitBinary, carrier)
 
 	// Extract it.
-	sp2, err := tracer.Extractor(opentracing.SplitBinary).JoinTrace("", carrier)
+	sp2, err := tracer.Join("", opentracing.SplitBinary, carrier)
 	if err != nil {
 		t.Errorf("Error extracting span %s", err)
 	}

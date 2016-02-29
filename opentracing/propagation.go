@@ -30,11 +30,14 @@ type goHTTPPropagator struct {
 	*splitBinaryPropagator
 }
 
-func (p *splitTextPropagator) InjectSpan(
+func (p *splitTextPropagator) Inject(
 	sp opentracing.Span,
 	carrier interface{},
 ) error {
-	sc := sp.(*Span)
+	sc, ok := sp.(*Span)
+	if !ok {
+		return opentracing.ErrInvalidSpan
+	}
 	splitTextCarrier, ok := carrier.(*opentracing.SplitTextCarrier)
 	if !ok {
 		return opentracing.ErrInvalidCarrier
@@ -53,7 +56,7 @@ func (p *splitTextPropagator) InjectSpan(
 	return nil
 }
 
-func (p *splitTextPropagator) JoinTrace(
+func (p *splitTextPropagator) Join(
 	operationName string,
 	carrier interface{},
 ) (opentracing.Span, error) {
@@ -103,15 +106,19 @@ func (p *splitTextPropagator) JoinTrace(
 	return sp, nil
 }
 
-func (p *splitBinaryPropagator) InjectSpan(
+func (p *splitBinaryPropagator) Inject(
 	sp opentracing.Span,
 	carrier interface{},
 ) error {
-	sc := sp.(*Span)
+	sc, ok := sp.(*Span)
+	if !ok {
+		return opentracing.ErrInvalidSpan
+	}
 	splitBinaryCarrier, ok := carrier.(*opentracing.SplitBinaryCarrier)
 	if !ok {
 		return opentracing.ErrInvalidCarrier
 	}
+
 	var err error
 	var sampledByte byte
 	if sc.sampled {
@@ -169,7 +176,7 @@ func (p *splitBinaryPropagator) InjectSpan(
 	return nil
 }
 
-func (p *splitBinaryPropagator) JoinTrace(
+func (p *splitBinaryPropagator) Join(
 	operationName string,
 	carrier interface{},
 ) (opentracing.Span, error) {
@@ -253,7 +260,7 @@ func (p *goHTTPPropagator) InjectSpan(
 ) error {
 	// Defer to SplitBinary for the real work.
 	splitBinaryCarrier := opentracing.NewSplitBinaryCarrier()
-	if err := p.splitBinaryPropagator.InjectSpan(sp, splitBinaryCarrier); err != nil {
+	if err := p.splitBinaryPropagator.Inject(sp, splitBinaryCarrier); err != nil {
 		return err
 	}
 
@@ -272,7 +279,10 @@ func (p *goHTTPPropagator) JoinTrace(
 	carrier interface{},
 ) (opentracing.Span, error) {
 	// Decode the two base64-encoded data blobs from the HTTP header.
-	header := carrier.(http.Header)
+	header, ok := carrier.(http.Header)
+	if !ok {
+		return nil, opentracing.ErrInvalidCarrier
+	}
 	tracerStateBase64, found := header[http.CanonicalHeaderKey(tracerStateHeaderName)]
 	if !found || len(tracerStateBase64) == 0 {
 		return nil, opentracing.ErrTraceNotFound
@@ -295,5 +305,5 @@ func (p *goHTTPPropagator) JoinTrace(
 		TracerState: tracerStateBinary,
 		Baggage:     baggageBinary,
 	}
-	return p.splitBinaryPropagator.JoinTrace(operationName, splitBinaryCarrier)
+	return p.splitBinaryPropagator.Join(operationName, splitBinaryCarrier)
 }
