@@ -138,9 +138,14 @@ func (p *splitBinaryPropagator) Inject(
 	if err != nil {
 		return nil
 	}
+	splitBinaryCarrier.TracerState = contextBuf.Bytes()
+	if len(sc.baggage) == 0 {
+		splitBinaryCarrier.Baggage = []byte{}
+		return nil
+	}
 
 	// Baggage struct creation
-	msg, seg, err = capnp.NewMessage(capnp.SingleSegment(nil))
+	msg, seg, err = capnp.NewMessage(capnp.MultiSegment(nil))
 	if err != nil {
 		return err
 	}
@@ -173,7 +178,6 @@ func (p *splitBinaryPropagator) Inject(
 	baggageBuf := new(bytes.Buffer)
 	err = capnp.NewEncoder(baggageBuf).Encode(msg)
 
-	splitBinaryCarrier.TracerState = contextBuf.Bytes()
 	splitBinaryCarrier.Baggage = baggageBuf.Bytes()
 	return nil
 }
