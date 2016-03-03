@@ -1,0 +1,12 @@
+syntax = "proto3";
+package pb;
+
+message TraceState {
+  uint64 trace_id = 1;
+  uint64 span_id = 3;
+  bool sampled_status = 2;
+}
+
+message Baggage {
+  map<string, string> baggage = 1;
+}
