@@ -128,7 +128,7 @@ func (s *Span) LogEventWithPayload(event string, payload interface{}) {
 	s.Log(opentracing.LogData{Event: event, Timestamp: time.Now(), Payload: payload})
 }
 
-// SetBaggageItems adds a baggage item to the trace.
+// SetBaggageItem adds a baggage item to the trace.
 //
 // If the supplied key doesn't match opentracing.CanonicalizeBaggageKey,
 // the key will still be used, however the behavior is undefined.

@@ -39,11 +39,16 @@ func defaultOptions() Options {
 // Appdash recorder.
 //
 // NewAppdashTracer requires an appdash.Recorder in order to serialize and
-// write events to an Appdash store.
+// write events to an Appdash store. The default Options sampling function
+// samples all traces.
 func NewTracer(r *appdash.Recorder) opentracing.Tracer {
 	return NewTracerWithOptions(r, defaultOptions())
 }
 
+// NewTracerWithOptions creates and returns a new opentracing.Tracer.
+//
+// Please look take a look at the appdash/opentracing.Options struct to see
+// what options are available to be passed in.
 func NewTracerWithOptions(r *appdash.Recorder, opts Options) opentracing.Tracer {
 	t := &Tracer{recorder: r, options: opts}
 	t.textPropagator = &splitTextPropagator{t}
@@ -57,6 +62,8 @@ func (t *Tracer) StartSpan(operationName string) opentracing.Span {
 	return t.StartSpanWithOptions(opentracing.StartSpanOptions{OperationName: operationName})
 }
 
+// StartSpanWithOptions returns a new span with the given StartSpanOptions.
+// If the Parent option is nil, a new root span will be started.
 func (t *Tracer) StartSpanWithOptions(opts opentracing.StartSpanOptions) opentracing.Span {
 	sp := newAppdashSpan(opts.OperationName, t)
 
