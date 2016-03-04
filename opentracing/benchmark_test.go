@@ -95,9 +95,6 @@ func benchmarBinaryCarrier(b *testing.B, numTags int, benchJoin bool) {
 func BenchmarkBinaryJoin_0BaggageItems(b *testing.B) {
 	benchmarBinaryCarrier(b, 0, true)
 }
-func BenchmarkBinaryJoin_10BaggageItems(b *testing.B) {
-	benchmarBinaryCarrier(b, 10, true)
-}
 func BenchmarkBinaryJoin_100BaggageItems(b *testing.B) {
 	benchmarBinaryCarrier(b, 100, true)
 }
@@ -107,9 +104,6 @@ func BenchmarkBinaryJoin_1000BaggageItems(b *testing.B) {
 
 func BenchmarkBinaryInject_0BaggageItems(b *testing.B) {
 	benchmarBinaryCarrier(b, 0, false)
-}
-func BenchmarkBinaryInject_10BaggageItems(b *testing.B) {
-	benchmarBinaryCarrier(b, 10, false)
 }
 func BenchmarkBinaryInject_100BaggageItems(b *testing.B) {
 	benchmarBinaryCarrier(b, 100, false)
