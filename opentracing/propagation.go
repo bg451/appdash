@@ -120,30 +120,31 @@ func (p *splitBinaryPropagator) Inject(
 		return opentracing.ErrInvalidCarrier
 	}
 
-	state := &pb.TraceState{
-		TraceId:       uint64(sc.Recorder.SpanID.Trace),
-		SpanId:        uint64(sc.Recorder.SpanID.Span),
-		SampledStatus: sc.sampled,
+	state := &pb.TracerState{
+		TraceId: uint64(sc.Recorder.SpanID.Trace),
+		SpanId:  uint64(sc.Recorder.SpanID.Span),
+		Sampled: sc.sampled,
 	}
 
 	contextBytes, err := proto.Marshal(state)
 	if err != nil {
-		return opentracing.ErrTraceCorrupted
+		return err
 	}
 	splitBinaryCarrier.TracerState = contextBytes
-	// If there aren't any baggage items, don't bother trying to encode 
-	if len(sc.baggage) < 1 {
-		return nil	
-	}
 
-	baggage := &pb.Baggage{
-		Baggage: sc.baggage,
+	// Only attempt to encode the baggage if it has items.
+	if len(sc.baggage) > 0 {
+		sc.Lock()
+		baggage := &pb.Baggage{
+			Baggage: sc.baggage,
+		}
+		baggageBytes, err := proto.Marshal(baggage)
+		sc.Unlock()
+		if err != nil {
+			return err
+		}
+		splitBinaryCarrier.Baggage = baggageBytes
 	}
-	baggageBytes, err := proto.Marshal(baggage)
-	if err != nil {
-		return opentracing.ErrTraceCorrupted
-	}
-	splitBinaryCarrier.Baggage = baggageBytes
 
 	return nil
 }
@@ -158,7 +159,7 @@ func (p *splitBinaryPropagator) Join(
 	}
 
 	// Handle the trace, span ids, and sampled status.
-	context := pb.TraceState{}
+	context := pb.TracerState{}
 	if err := proto.Unmarshal(splitBinaryCarrier.TracerState, &context); err != nil {
 		return nil, opentracing.ErrTraceCorrupted
 	}
@@ -172,12 +173,12 @@ func (p *splitBinaryPropagator) Join(
 		}
 		baggageMap = baggage.Baggage
 	} else {
-		baggageMap = make(map[string]string, 0) 
+		baggageMap = make(map[string]string, 0)
 	}
 
 	sp := newAppdashSpan(operationName, p.tracer)
 	sp.Recorder = p.tracer.newChildRecorder(context.SpanId, context.TraceId)
-	sp.sampled = context.SampledStatus
+	sp.sampled = context.Sampled
 	sp.baggage = baggageMap
 	sp.tags = make(map[string]interface{}, 0)
 
