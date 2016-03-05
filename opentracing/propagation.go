@@ -254,7 +254,7 @@ const (
 	traceBaggageHeaderName = "Trace-Baggage"
 )
 
-func (p *goHTTPPropagator) InjectSpan(
+func (p *goHTTPPropagator) Inject(
 	sp opentracing.Span,
 	carrier interface{},
 ) error {
@@ -274,7 +274,7 @@ func (p *goHTTPPropagator) InjectSpan(
 	return nil
 }
 
-func (p *goHTTPPropagator) JoinTrace(
+func (p *goHTTPPropagator) Join(
 	operationName string,
 	carrier interface{},
 ) (opentracing.Span, error) {
