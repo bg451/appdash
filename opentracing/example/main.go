@@ -24,14 +24,14 @@ import (
 	appdashtracer "sourcegraph.com/sourcegraph/appdash/opentracing"
 	"sourcegraph.com/sourcegraph/appdash/traceapp"
 
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 )
 
 func client() {
 	reader := bufio.NewReader(os.Stdin)
 	for {
-		ctx, span := opentracing.BackgroundContextWithSpan(
-			opentracing.StartSpan("getInput"))
+		span := opentracing.StartSpan("getInput")
+		ctx := opentracing.BackgroundContextWithSpan(span)
 		// Make sure that global trace tag propagation works.
 		span.SetBaggageItem("User", os.Getenv("USER"))
 		span.LogEventWithPayload("ctx", ctx)
@@ -47,7 +47,7 @@ func client() {
 
 		httpClient := &http.Client{}
 		httpReq, _ := http.NewRequest("POST", "http://localhost:8080/", bytes.NewReader([]byte(text)))
-		opentracing.InjectSpan(span, opentracing.GoHTTPHeader, httpReq.Header)
+		opentracing.InjectSpanInHeader(span, httpReq.Header)
 		resp, err := httpClient.Do(httpReq)
 		if err != nil {
 			span.LogEventWithPayload("error", err)
@@ -61,7 +61,7 @@ func client() {
 
 func server() {
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
-		serverSpan, err := opentracing.JoinTraceFromHeader(
+		serverSpan, err := opentracing.JoinFromHeader(
 			"serverSpan", req.Header, opentracing.GlobalTracer())
 		if err != nil {
 			fmt.Println(err)
