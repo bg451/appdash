@@ -153,6 +153,11 @@ type spanName struct{ Name string }
 
 func (spanName) Schema() string { return "name" }
 
+// SpanName returns an Event containing a human readable Span name.
+func SpanName(name string) Event {
+	return spanName{Name: name}
+}
+
 // Msg returns an Event that contains only a human-readable message.
 func Msg(msg string) Event {
 	return msgEvent{Msg: msg}

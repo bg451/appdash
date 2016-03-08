@@ -120,8 +120,7 @@ func main() {
 	// the information to a remote Appdash collection server).
 	collector := appdash.NewLocalCollector(store)
 
-	recorder := appdash.NewRecorder(appdash.SpanID{}, collector)
-	opentracing.InitGlobalTracer(appdashtracer.NewTracer(recorder))
+	opentracing.InitGlobalTracer(appdashtracer.NewTracer(collector))
 
 	go server()
 	go client()
